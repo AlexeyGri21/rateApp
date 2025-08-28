@@ -260,7 +260,7 @@ class App extends React.Component {
           renderInputs: this.renderInputs,
         }}
       >
-        <Dark />
+        {/* <Dark /> */}
         <Modal />
         <Layout />
       </RateContext.Provider>
