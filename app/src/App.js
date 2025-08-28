@@ -1,0 +1,271 @@
+import React from "react";
+import "./App.scss";
+import Layout from "./components/layout/Layout";
+import axios from "axios";
+
+import CHF from "./image/CHF.png";
+import CNY from "./image/CNY.png";
+import EUR from "./image/EUR.png";
+import GBP from "./image/GBP.png";
+import JPY from "./image/JPY.png";
+import TRY from "./image/RUB.png";
+import USD from "./image/USD.png";
+import { RateContext } from "./context/RateContext";
+import { Dark } from "./components/dark/Dark";
+import { Modal } from "./components/modal/Modal";
+import { Input } from "./components/input/Input";
+
+const validateEmail = (email) => {
+  var re =
+    /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  return re.test(String(email).toLowerCase());
+};
+
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      formControls: {
+        email: {
+          value: "",
+          type: "email",
+          label: "Email",
+          errorMessage: "Введите корректный Email",
+          valid: false,
+          touched: false,
+          validation: {
+            required: true,
+            email: true,
+          },
+        },
+        password: {
+          value: "",
+          type: "password",
+          label: "Пароль",
+          errorMessage: "Введите корректный пароль",
+          valid: false,
+          touched: false,
+          validation: {
+            required: true,
+            minLength: 6,
+          },
+        },
+      },
+
+      base: "USD",
+      rate: "",
+      date: "",
+      currency: {
+        USD: { name: "Доллар США", flag: USD, course: "" },
+        CNY: { name: "китайский юань", flag: CNY, course: "" },
+        EUR: { name: "Евро", flag: EUR, course: "" },
+        GBP: { name: "Фунт Стерлингов", flag: GBP, course: "" },
+        JPY: { name: "Японская Йена", flag: JPY, course: "" },
+        TRY: { name: "Российский Рубль", flag: TRY, course: "" },
+        CHF: { name: "Швейцарский франк", flag: CHF, course: "" },
+      },
+
+      //calculator
+
+      inputValue: 100,
+      currencyValue: "USD",
+      result: null,
+
+      //sample
+
+      sample: { base: "USD", base2: "TRY", date: "", course: "" },
+      sampleList: "",
+    };
+  }
+
+  validateControl(value, validation) {
+    if (!validation) {
+      return true;
+    }
+
+    let isValid = true;
+
+    if (validation.required) {
+      isValid = value.trim() !== "" && isValid;
+    }
+    if (validation.email) {
+      isValid = validateEmail(value) && isValid;
+    }
+    if (validation.minLength) {
+      isValid = value.length >= validation.minLength && isValid;
+    }
+
+    return isValid;
+  }
+
+  onChangeHandler = (event, controlName) => {
+    const formControls = { ...this.state.formControls };
+
+    const control = { ...formControls[controlName] };
+
+    control.value = event.target.value;
+    control.touched = true;
+    control.valid = this.validateControl(control.value, control.validation);
+
+    formControls[controlName] = control;
+    this.setState({ formControls });
+  };
+
+  renderInputs = () => {
+    return Object.keys(this.state.formControls).map((controlName, i) => {
+      const control = this.state.formControls[controlName];
+      return (
+        <Input
+          key={controlName + i}
+          type={control.type}
+          value={control.value}
+          valid={control.valid}
+          touched={control.touched}
+          label={control.label}
+          errorMessage={control.errorMessage}
+          shouldValidate={true}
+          onChange={(event) => this.onChangeHandler(event, controlName)}
+        />
+      );
+    });
+  };
+
+  baseHandler = (event) => {
+    this.setState({
+      sample: { ...this.state.sample, base: event.target.value },
+    });
+  };
+
+  base2Handler = (event) => {
+    this.setState({
+      sample: { ...this.state.sample, base2: event.target.value },
+    });
+  };
+
+  sampleDateHandler = (event) => {
+    this.setState({
+      sample: { ...this.state.sample, date: event.target.value },
+    });
+  };
+
+  dataWrite = async () => {
+    await fetch(` https:///api.frankfurter.app/${this.state.sample.date}?from=${this.state.sample.base}
+
+
+`)
+      .then((response) => response.json())
+      .then((response) => {
+        this.setState({
+          sample: {
+            ...this.state.sample,
+            course: response.rates[this.state.sample.base2],
+          },
+        });
+      });
+
+    await axios
+      .post(
+        "https://rateapp-31641-default-rtdb.firebaseio.com/sample.json",
+        this.state.sample
+      )
+      .then((response) => {
+        return "";
+      });
+
+    await axios(
+      "https://rateapp-31641-default-rtdb.firebaseio.com/sample.json"
+    ).then((response) => {
+      this.setState({ sampleList: response.data });
+    });
+  };
+
+  sampleRemove = async (id) => {
+    let sampleList = {
+      ...this.state.sampleList,
+    };
+    delete sampleList[id];
+    this.setState({ sampleList });
+
+    await axios.delete(
+      `https://rateapp-31641-default-rtdb.firebaseio.com/sample/${id}.json`
+    );
+  };
+
+  inputValueHandler = (event) => {
+    this.setState({ inputValue: event.target.value, result: null });
+  };
+
+  currencyValueHandler = (event) => {
+    this.setState({ currencyValue: event.target.value, result: null });
+  };
+
+  calculatorHandler = async (value) => {
+    let result;
+
+    await fetch(`https:///api.frankfurter.app/latest?from=TRY`)
+      .then((response) => response.json())
+      .then((response) => {
+        // console.log(response);
+
+        result = response.rates[value] * this.state.inputValue;
+      });
+
+    this.setState({ result });
+  };
+
+  componentDidMount() {
+    fetch(`https:///api.frankfurter.app/latest?from=${this.state.base}
+`)
+      .then((response) => response.json())
+      .then((response) => {
+        // console.log(response);
+        const rateArr = ["USD", "CNY", "EUR", "GBP", "JPY", "TRY", "CHF"];
+        const currency = { ...this.state.currency };
+
+        for (let i = 0; i < rateArr.length; i++) {
+          currency[rateArr[i]].course = response.rates[rateArr[i]];
+        }
+
+        this.setState({
+          rate: response.rates,
+          date: response.time_last_update_utc,
+          // new Date(response.time_last_update_utc).toLocaleDateString(
+          //   "ru-RU"
+          // ),
+          currency,
+        });
+      });
+
+    axios("https://rateapp-31641-default-rtdb.firebaseio.com/sample.json").then(
+      (response) => {
+        this.setState({ sampleList: response.data });
+      }
+    );
+  }
+
+  render() {
+    return (
+      <RateContext.Provider
+        value={{
+          state: this.state,
+          inputValueHandler: this.inputValueHandler,
+          currencyValueHandler: this.currencyValueHandler,
+          calculatorHandler: this.calculatorHandler,
+          baseHandler: this.baseHandler,
+          base2Handler: this.base2Handler,
+          sampleDateHandler: this.sampleDateHandler,
+          dataWrite: this.dataWrite,
+          sampleRemove: this.sampleRemove,
+          renderInputs: this.renderInputs,
+        }}
+      >
+        <Dark />
+        <Modal />
+        <Layout />
+      </RateContext.Provider>
+    );
+  }
+}
+
+export default App;
